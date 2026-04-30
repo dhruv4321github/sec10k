@@ -1,0 +1,62 @@
+version: "3.9"
+
+services:
+  # ──────────────────────────────────────────────
+  # PostgreSQL with pgvector extension
+  # ──────────────────────────────────────────────
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: sec10k-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: sec10k
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ──────────────────────────────────────────────
+  # FastAPI Backend
+  # ──────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sec10k-backend
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/sec10k
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/app/app  # hot-reload during dev
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ──────────────────────────────────────────────
+  # React Frontend
+  # ──────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sec10k-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+      - WDS_SOCKET_PORT=0   # silences webpack-dev-server hot-reload websocket warnings
+    depends_on:
+      - backend
+    stdin_open: true        # CRA dev server needs this
+
+volumes:
+  pgdata:
