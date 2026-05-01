@@ -46,7 +46,7 @@ Three services start:
 
 ### 4. Try it
 1. Click **+ Add** on any of the three filing cards (AAPL / MSFT / NVDA).
-2. Watch the card show a yellow "Parsing… this may take 30–90 seconds" banner with a spinner. Wait for it to reach **Ready**.
+2. Watch the card show a yellow "Parsing… this may take a few seconds" banner with a spinner. Wait for it to reach **Ready**.
 3. Switch to **Sections** to read the extracted Items.
 4. Switch to **Ask**, click an example question, and watch the answer come back with clickable `[1]` `[2]` citation chips that scroll to the supporting evidence below.
 5. Conversations persist to localStorage — use the left sidebar to switch between past conversations or start new ones.
