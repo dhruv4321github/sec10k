@@ -44,6 +44,7 @@ class SectionSummary(BaseModel):
     name: str
     item_label: Optional[str]
     char_count: int
+    text: str
 
 
 class SectionOut(BaseModel):

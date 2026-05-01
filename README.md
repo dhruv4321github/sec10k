@@ -63,7 +63,7 @@ The endpoint paths match the assignment spec exactly — no `/api/` prefix.
 |---|---|---|
 | `POST` | `/documents/ingest` | Ingest a new SEC 10-K filing |
 | `GET` | `/documents` | List all ingested documents |
-| `GET` | `/documents/{id}/sections` | Get extracted sections for a document |
+| `GET` | `/documents/{id}/sections` | Get extracted sections (with full text) for a document |
 | `POST` | `/questions/ask` | Submit a question for RAG-based Q&A |
 
 ### Optional / Preferred (both implemented)
@@ -83,7 +83,7 @@ The job runner supports three kinds:
 | Method | Endpoint | Purpose |
 |---|---|---|
 | `GET` | `/documents/{id}` | Get one document |
-| `GET` | `/documents/{id}/sections/{name}` | Get a section's full text |
+| `GET` | `/documents/{id}/sections/{name}` | Get a single section by name |
 | `DELETE` | `/documents/{id}` | Delete a document and its chunks |
 | `GET` | `/healthz` | Liveness probe |
 

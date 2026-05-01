@@ -84,7 +84,7 @@ def list_sections(document_id: uuid.UUID, db: Session = Depends(get_db)):
     return SectionsListOut(
         document_id=doc.id, company=doc.company,
         sections=[
-            SectionSummary(id=s.id, name=s.name, item_label=s.item_label, char_count=len(s.text))
+            SectionSummary(id=s.id, name=s.name, item_label=s.item_label, char_count=len(s.text), text=s.text)
             for s in sections
         ],
     )

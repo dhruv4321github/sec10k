@@ -3,14 +3,11 @@
  *
  *   - Left rail: list of ready filings.
  *   - Right pane: that filing's extracted Items (1, 1A, 7, 8) as expandable cards.
- *   - Clicking a card fetches its full text and shows it inline.
- *
- * Loading: shimmer/spinner while sections list loads, spinner inside an
- * expanded card while its full text loads.
+ *   - Section text is loaded with the sections list; clicking a card toggles it open.
  */
 
 import React, { useEffect, useState } from 'react';
-import { getSections, getSection } from '../services/api';
+import { getSections } from '../services/api';
 
 function SectionsView({ documents }) {
   const ready = documents.filter((d) => d.status === 'ready');
@@ -19,8 +16,6 @@ function SectionsView({ documents }) {
   const [sections, setSections] = useState(null);
   const [loadingSections, setLoadingSections] = useState(false);
   const [openName, setOpenName] = useState(null);
-  const [body, setBody] = useState(null);
-  const [loadingBody, setLoadingBody] = useState(false);
 
   // Auto-select the first ready doc once they exist
   useEffect(() => {
@@ -37,30 +32,14 @@ function SectionsView({ documents }) {
     }
     setLoadingSections(true);
     setOpenName(null);
-    setBody(null);
     getSections(selectedId)
       .then((res) => setSections(res.data))
       .catch(() => setSections({ sections: [] }))
       .finally(() => setLoadingSections(false));
   }, [selectedId]);
 
-  const openSection = async (name) => {
-    if (openName === name) {
-      setOpenName(null);
-      setBody(null);
-      return;
-    }
-    setOpenName(name);
-    setBody(null);
-    setLoadingBody(true);
-    try {
-      const res = await getSection(selectedId, name);
-      setBody(res.data);
-    } catch {
-      setBody({ text: 'Failed to load section text.' });
-    } finally {
-      setLoadingBody(false);
-    }
+  const openSection = (name) => {
+    setOpenName(openName === name ? null : name);
   };
 
   if (ready.length === 0) {
@@ -149,14 +128,7 @@ function SectionsView({ documents }) {
                         </button>
                         {isOpen && (
                           <div className="section-card-body">
-                            {loadingBody && (
-                              <div className="loading-state">
-                                <span className="spinner-small"></span> Loading section text…
-                              </div>
-                            )}
-                            {body && !loadingBody && (
-                              <pre className="section-text">{body.text}</pre>
-                            )}
+                            <pre className="section-text">{s.text}</pre>
                           </div>
                         )}
                       </article>

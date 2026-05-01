@@ -158,15 +158,15 @@ Response:
 
 ---
 
-## 3. List sections of a document — `GET /documents/{id}/sections`
+## 3. Get sections of a document — `GET /documents/{id}/sections`
 
-The parser extracts four key sections from each 10-K filing: Item 1 (Business), Item 1A (Risk Factors), Item 7 (MD&A), and Item 8 (Financial Statements).
+The parser extracts four key sections from each 10-K filing: Item 1 (Business), Item 1A (Risk Factors), Item 7 (MD&A), and Item 8 (Financial Statements). This endpoint returns all sections with their full text.
 
 ```bash
 curl http://localhost:8000/documents/febc608c-23d9-49f3-9bcd-a5119aa0bc65/sections
 ```
 
-Response:
+Response (section texts truncated for brevity):
 
 ```json
 {
@@ -177,25 +177,29 @@ Response:
             "id": "3fc00b8a-0c75-483e-a361-e339956665cb",
             "name": "Business",
             "item_label": "Item 1",
-            "char_count": 16009
+            "char_count": 16009,
+            "text": "Item 1. Business\n\nCompany Background\nThe Company designs, manufactures and markets smartphones, personal computers, tablets, wearables and accessories, and sells a variety of related services. ..."
         },
         {
             "id": "dd31d932-1452-4069-a5c8-6ded4714829e",
             "name": "Risk Factors",
             "item_label": "Item 1A",
-            "char_count": 68057
+            "char_count": 68057,
+            "text": "Item 1A. Risk Factors\n\nThe Company's business, reputation, results of operations, financial condition and stock price can be affected by a number of factors, ..."
         },
         {
             "id": "9cc52e50-2553-42b8-a957-bff3af2dd223",
             "name": "Management's Discussion and Analysis",
             "item_label": "Item 7",
-            "char_count": 17891
+            "char_count": 17891,
+            "text": "Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations\n\nFiscal Year Highlights\nTotal net sales increased 5% or $19.2 billion during 2025 ..."
         },
         {
             "id": "f4a5c7b1-fbf5-4448-9eab-de4105c41bab",
             "name": "Financial Statements",
             "item_label": "Item 8",
-            "char_count": 60183
+            "char_count": 60183,
+            "text": "Item 8. Financial Statements and Supplementary Data\n\nAll financial amounts in this Item 8 are expressed in millions, ..."
         }
     ]
 }
@@ -203,9 +207,9 @@ Response:
 
 ---
 
-## 3b. Get full section text — `GET /documents/{id}/sections/{section_name}`
+## 3b. Get a single section — `GET /documents/{id}/sections/{section_name}`
 
-The list endpoint above returns summaries with `char_count`. To retrieve the full extracted text of a specific section, use the detail endpoint:
+Convenience endpoint to fetch a single section by name, if you don't need all four at once:
 
 ```bash
 curl http://localhost:8000/documents/febc608c-23d9-49f3-9bcd-a5119aa0bc65/sections/Business
