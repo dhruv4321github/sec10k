@@ -128,7 +128,6 @@ Response shape:
   "model_used": "gpt-4o-mini-2024-07-18",
   "retrieval": {
     "top_k": 5,
-    "candidates": 20,
     "company_filter": null,
     "section_filter": null,
     "mode": "per_company"
@@ -136,7 +135,7 @@ Response shape:
 }
 ```
 
-The `mode` field shows whether the server did standard hybrid retrieval (`single`) or per-company retrieval (`per_company`).
+The `mode` field shows whether the server did standard vector retrieval (`single`) or per-company retrieval (`per_company`).
 
 ---
 

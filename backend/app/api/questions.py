@@ -31,10 +31,8 @@ def ask(body: AskRequest, db: Session = Depends(get_db)):
     top_k = settings.top_k
 
     if body.company_filter:
-        # Single-company question — straight hybrid retrieval.
         hits = rag_pipeline.retrieve(
             db, query=body.query, top_k=top_k,
-            candidates=settings.retrieval_candidates,
             company_filter=body.company_filter,
             section_filter=body.section_filter,
         )
@@ -55,25 +53,19 @@ def ask(body: AskRequest, db: Session = Depends(get_db)):
         if len(ready_companies) == 1:
             hits = rag_pipeline.retrieve(
                 db, query=body.query, top_k=top_k,
-                candidates=settings.retrieval_candidates,
                 company_filter=ready_companies[0],
                 section_filter=body.section_filter,
             )
         else:
-            # Per-company top-k, then concatenate. Each company gets equal floor space
-            # in the context so the LLM can actually compare. We give each company a
-            # slightly smaller k so total context stays manageable.
-            per_company_k = max(3, top_k)  # at least 3 per company
+            per_company_k = max(3, top_k)
             all_hits = []
             for company in ready_companies:
                 ch = rag_pipeline.retrieve(
                     db, query=body.query, top_k=per_company_k,
-                    candidates=settings.retrieval_candidates,
                     company_filter=company,
                     section_filter=body.section_filter,
                 )
                 all_hits.extend(ch)
-            # Stable sort by score desc, but already-grouped-by-company is fine for the LLM
             all_hits.sort(key=lambda h: h.score, reverse=True)
             hits = all_hits
 
@@ -99,7 +91,6 @@ def ask(body: AskRequest, db: Session = Depends(get_db)):
         model_used=result["model"],
         retrieval={
             "top_k": top_k,
-            "candidates": settings.retrieval_candidates,
             "company_filter": body.company_filter,
             "section_filter": body.section_filter,
             "mode": "single" if body.company_filter else "per_company",

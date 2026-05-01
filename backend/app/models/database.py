@@ -15,7 +15,7 @@ from sqlalchemy import (
     String, Text, Integer, ForeignKey, DateTime, Index, UniqueConstraint, func, text,
     create_engine, JSON,
 )
-from sqlalchemy.dialects.postgresql import UUID, TSVECTOR
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship, sessionmaker, DeclarativeBase, Session
 from pgvector.sqlalchemy import Vector
 
@@ -123,7 +123,6 @@ class Chunk(Base):
     text: Mapped[str] = mapped_column(Text, nullable=False)
 
     embedding: Mapped[Optional[list[float]]] = mapped_column(Vector(_settings.embedding_dim))
-    tsv: Mapped[Optional[str]] = mapped_column(TSVECTOR)
 
     document: Mapped[Document] = relationship(back_populates="chunks")
 
@@ -131,7 +130,6 @@ class Chunk(Base):
         Index("ix_chunks_document", "document_id"),
         Index("ix_chunks_section", "section_id"),
         Index("ix_chunks_company", "company"),
-        Index("ix_chunks_tsv", "tsv", postgresql_using="gin"),
     )
 
 

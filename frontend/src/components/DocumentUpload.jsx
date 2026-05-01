@@ -159,7 +159,7 @@ function DocumentUpload({ documents, onRefresh }) {
                     {isProcessing && (
                       <div className="doc-processing">
                         <span className="spinner-small"></span>
-                        <span>{statusLabel(doc.status)}… this may take 30–90 seconds</span>
+                        <span>{statusLabel(doc.status)}… this may take a few seconds</span>
                       </div>
                     )}
 

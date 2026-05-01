@@ -349,7 +349,7 @@ function ChatInterface({ documents }) {
                         <span className="cite-num">[{j + 1}]</span>
                         <strong>{src.company}</strong>
                         <span className="source-section">§ {src.section}</span>
-                        <span className="relevance">rrf {src.score.toFixed(4)}</span>
+                        <span className="relevance">sim {src.score.toFixed(4)}</span>
                       </div>
                       <p className="source-preview">{src.snippet}</p>
                     </div>

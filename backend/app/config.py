@@ -21,7 +21,6 @@ class Settings(BaseSettings):
     chunk_size: int = 800
     chunk_overlap: int = 100
     top_k: int = 5
-    retrieval_candidates: int = 20
 
     embedding_dim: int = 1536
     log_level: str = "INFO"

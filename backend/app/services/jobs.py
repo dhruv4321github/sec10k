@@ -54,7 +54,6 @@ def run_job(job_id: uuid.UUID) -> None:
                 settings = get_settings()
                 hits = rag_pipeline.retrieve(
                     db, query=query, top_k=settings.top_k,
-                    candidates=settings.retrieval_candidates,
                     company_filter=job.payload.get("company_filter"),
                     section_filter=job.payload.get("section_filter"),
                 )
@@ -83,7 +82,6 @@ def run_job(job_id: uuid.UUID) -> None:
                 for c in companies:
                     hits = rag_pipeline.retrieve(
                         db, query=topic, top_k=settings.top_k,
-                        candidates=settings.retrieval_candidates,
                         company_filter=c,
                     )
                     ans = rag_pipeline.answer_question(

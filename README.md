@@ -104,8 +104,8 @@ The job runner supports three kinds:
 │        │           │              │                       │
 │        ▼           ▼              ▼                       │
 │  Ingestion    RAG pipeline   Job runner                   │
-│  (fetch +     (vector +      (BackgroundTasks)            │
-│   parse +      FTS + RRF)                                 │
+│  (fetch +     (vector        (BackgroundTasks)            │
+│   parse +      similarity)                                │
 │   chunk +                                                 │
 │   embed)                                                  │
 └─────────────────────────┬────────────────────────────────┘
@@ -114,7 +114,7 @@ The job runner supports three kinds:
 ┌──────────────────────────────────────────────────────────┐
 │  Postgres + pgvector (:5432)                              │
 │  documents · sections · chunks · jobs                     │
-│  (chunks have both an embedding column and a tsvector)    │
+│  (chunks have an embedding column for vector search)      │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -124,11 +124,7 @@ The 10-K layout includes every Item header twice: once in the Table of Contents 
 
 For every canonical Item from the standard 10-K layout, the extractor builds a regex that matches `Item N. <full canonical title>` separated by **inline whitespace only** (`[ \t]+`). The TOC's intervening newlines fail this constraint, so only the body match fires. The regex also tolerates curly apostrophes (U+2019) which Apple's filing actually uses.
 
-Sections are then sliced from each Item's body anchor to the start of the next item's anchor. This produces clean boundaries:
-- **Item 1** ends right before "Item 1A. Risk Factors" — no bleed.
-- **Item 1A** starts at the actual header, not at a cross-reference inside Item 7.
-- **Item 7** spans the full MD&A from the opening paragraph through "Critical Accounting Estimates" — not cut off mid-section.
-- **Item 8** spans the full financial statements ending at the auditor's sign-off — not a single sentence from Item 9.
+Sections are then sliced from each Item's body anchor to the start of the next item's anchor.
 
 ## Chunking
 
@@ -136,13 +132,11 @@ Section-aware recursive chunking: paragraph → sentence → fixed character win
 
 ## Retrieval
 
-**Hybrid retrieval with reciprocal rank fusion.** For each question:
+**Vector similarity retrieval.** For each question:
 
 1. Embed the query (OpenAI `text-embedding-3-small`, 1536d).
-2. **Vector search**: top-20 by cosine distance via pgvector `<=>`.
-3. **Lexical search**: top-20 by `ts_rank_cd` over a `tsvector` column.
-4. Fuse with **RRF** (`score = Σ 1 / (60 + rank)`) — no score calibration needed.
-5. Top-K go to the LLM with a strict prompt requiring `[n]` citations.
+2. **Vector search**: top-K by cosine distance via pgvector `<=>`.
+3. Top-K go to the LLM with a strict prompt requiring `[n]` citations.
 
 **Per-company retrieval for comparisons.** When no company filter is set and multiple filings are ingested, the server retrieves top-K from *each* company's chunks separately and concatenates. This is what makes "Compare risk factors between Apple and NVIDIA" work — without it, vector similarity tends to pile all retrieved chunks into one company.
 
@@ -155,7 +149,7 @@ Section-aware recursive chunking: paragraph → sentence → fixed character win
 | `text-embedding-3-small` | Cheap, fast | `text-embedding-3-large` slightly better recall |
 | `gpt-4o-mini` for synthesis | Cheap, fast, good enough | `gpt-4o` writes cleaner comparisons |
 | `BackgroundTasks` for async jobs | Zero infra | Doesn't survive restarts; no retries |
-| Hybrid RRF, no reranker | Cheap, deterministic | Cross-encoder reranker would tighten top-K further |
+| Vector-only retrieval, no reranker | Simple, fast | Hybrid (FTS + RRF) or cross-encoder reranker could improve recall |
 | BeautifulSoup HTML → text | Works on actual SEC filings | iXBRL-aware parsing would extract structured financials |
 | Per-company retrieval for compare | Each company is represented in context | More embedding/DB work per query |
 | Chat history in localStorage | No server state needed; survives navigation | Bound to one browser; no cross-device sync |
@@ -165,12 +159,12 @@ Section-aware recursive chunking: paragraph → sentence → fixed character win
 - Filings come from `sec.gov/Archives/edgar/...` in HTML form. The parser handles Apple's, Microsoft's, and NVIDIA's 2025 layouts.
 - A document is identified by `(CIK, accession)` derived from the URL — re-ingesting is idempotent.
 - "Section" means Items 1, 1A, 7, 8. Sub-items aren't split out.
-- Item titles match the canonical 10-K layout. Some filings use slight variations; the title regex tolerates whitespace and apostrophe variants but assumes the words are correct.
+- Item titles match the canonical 10-K layout. Some filings may use slight variations in format; the title regex tolerates whitespace and apostrophe variants but assumes the words are correct.
 
 ## Limitations
 
 - Tables and footnotes inside Item 8 are flattened to text. Numeric Q&A on cross-tabulated figures is unreliable; production would need iXBRL parsing.
-- No reranker.
+- No hybrid retrieval or reranker — pure vector similarity.
 - No auth, no rate limiting, no per-tenant isolation.
 - No streaming of LLM output.
 - Chat history is per-browser (localStorage).
@@ -178,7 +172,7 @@ Section-aware recursive chunking: paragraph → sentence → fixed character win
 ## How I'd improve it for production
 
 1. **Real job queue** (Celery + Redis) — `BackgroundTasks` doesn't survive restarts and won't scale across workers. The `run_job()` interface here is identical to what Celery would call, so the migration is one file.
-2. **Reranker** between fused top-20 and the LLM — single highest-leverage quality win.
+2. **Hybrid retrieval + reranker** — add FTS with RRF fusion and a cross-encoder reranker before the LLM.
 3. **Eval harness** with a fixed Q&A set + LLM-as-judge for faithfulness and citation precision. The example questions in the spec are a starting point.
 4. **Streaming** answers via SSE so the UI gets tokens as they generate.
 5. **iXBRL-aware parsing** — modern filings carry machine-readable financial facts; right now we throw them away by going through HTML text.
@@ -265,12 +259,12 @@ curl -X POST http://localhost:8000/questions/ask \
 
 **What worked well**
 - **Single Postgres for everything.** Vectors, FTS, metadata, jobs — all transactional, all in one connection. Right call at this scale.
-- **Hybrid retrieval (vector + FTS + RRF).** Real difference on questions where exact words matter ("Mac revenue", "Data Center segment").
+- **Vector similarity retrieval with pgvector.** Clean, simple, and good enough for most queries.
 - **Full-title section extraction.** The pattern of `Item N. <canonical title>` separated by *inline* whitespace is a clean way to distinguish body anchors from TOC entries. Once I saw that the TOC has newlines between the item number and its title (because of how my HTML→text flattening handles tables), the heuristic basically wrote itself.
 - **Per-company retrieval for comparisons.** A small change with a big effect on the example "compare risk factors" question.
 
 **What I'd improve next**
-- **Reranker.** Drop top-20 fused → top-5 reranked. Single highest-leverage quality win.
+- **Hybrid retrieval + reranker.** Add FTS with RRF fusion, then a cross-encoder reranker on top. Single highest-leverage quality win.
 - **Eval harness.** Right now I'm eyeballing answer quality. With ~30 reference Q&A pairs and an LLM-as-judge for faithfulness, every "improvement" stops being vibes and becomes measurable.
 - **Table/iXBRL parsing in Item 8.** Item 8 is a wall of text right now; it should be structured financial data.
 

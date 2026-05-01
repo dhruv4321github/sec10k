@@ -1,4 +1,4 @@
-"""Hybrid retrieval (pgvector + Postgres FTS, fused via RRF) + OpenAI answer composition."""
+"""Vector retrieval (pgvector cosine similarity) + OpenAI answer composition."""
 from __future__ import annotations
 
 import logging
@@ -28,23 +28,18 @@ class RetrievedChunk:
     score: float
 
 
-_RRF_K = 60
-
-
 def retrieve(
     db: Session,
     query: str,
     top_k: int = 5,
-    candidates: int = 20,
     company_filter: Optional[str] = None,
     section_filter: Optional[str] = None,
 ) -> list[RetrievedChunk]:
-    """Hybrid retrieval: vector + FTS, fused via reciprocal rank fusion."""
+    """Retrieve the top-K most similar chunks by cosine distance."""
     qvec = embed_query(query)
 
-    # vector
     where_clauses = ["embedding IS NOT NULL"]
-    params: dict = {"qvec": str(qvec), "limit": candidates}
+    params: dict = {"qvec": str(qvec), "limit": top_k}
     if company_filter:
         where_clauses.append("LOWER(company) = LOWER(:company)")
         params["company"] = company_filter
@@ -53,62 +48,25 @@ def retrieve(
         params["section"] = section_filter
     where_sql = " AND ".join(where_clauses)
 
-    vec_rows = db.execute(sql_text(f"""
-        SELECT id, document_id, company, section_name, text
+    rows = db.execute(sql_text(f"""
+        SELECT id, document_id, company, section_name, text,
+               1 - (embedding <=> CAST(:qvec AS vector)) AS score
         FROM chunks
         WHERE {where_sql}
         ORDER BY embedding <=> CAST(:qvec AS vector)
         LIMIT :limit
     """), params).all()
 
-    # lexical
-    lex_params: dict = {"q": query, "limit": candidates}
-    lex_where = ["tsv @@ plainto_tsquery('english', :q)"]
-    if company_filter:
-        lex_where.append("LOWER(company) = LOWER(:company)")
-        lex_params["company"] = company_filter
-    if section_filter:
-        lex_where.append("LOWER(section_name) = LOWER(:section)")
-        lex_params["section"] = section_filter
-    lex_where_sql = " AND ".join(lex_where)
-
-    lex_rows = db.execute(sql_text(f"""
-        SELECT id, document_id, company, section_name, text
-        FROM chunks
-        WHERE {lex_where_sql}
-        ORDER BY ts_rank_cd(tsv, plainto_tsquery('english', :q)) DESC
-        LIMIT :limit
-    """), lex_params).all()
-
-    # RRF fusion
-    fused: dict[uuid.UUID, RetrievedChunk] = {}
-    for i, row in enumerate(vec_rows):
-        cid = row.id
-        rrf = 1.0 / (_RRF_K + i + 1)
-        if cid not in fused:
-            fused[cid] = RetrievedChunk(
-                chunk_id=cid, document_id=row.document_id,
-                company=row.company, section=row.section_name,
-                text=row.text, score=rrf,
-            )
-        else:
-            fused[cid].score += rrf
-
-    for i, row in enumerate(lex_rows):
-        cid = row.id
-        rrf = 1.0 / (_RRF_K + i + 1)
-        if cid not in fused:
-            fused[cid] = RetrievedChunk(
-                chunk_id=cid, document_id=row.document_id,
-                company=row.company, section=row.section_name,
-                text=row.text, score=rrf,
-            )
-        else:
-            fused[cid].score += rrf
-
-    ranked = sorted(fused.values(), key=lambda r: r.score, reverse=True)[:top_k]
-    log.info("Retrieved %d candidates → top %d", len(fused), len(ranked))
-    return ranked
+    results = [
+        RetrievedChunk(
+            chunk_id=row.id, document_id=row.document_id,
+            company=row.company, section=row.section_name,
+            text=row.text, score=row.score,
+        )
+        for row in rows
+    ]
+    log.info("Retrieved top %d chunks by vector similarity", len(results))
+    return results
 
 
 # ──────────────────────────── LLM ────────────────────────────

@@ -7,7 +7,7 @@ Pipeline:
   4. Extract sections (Items 1, 1A, 7, 8)
   5. Chunk each section
   6. Embed chunks via OpenAI (batched)
-  7. Persist with tsvector for FTS
+  7. Persist to database
 """
 from __future__ import annotations
 
@@ -16,7 +16,6 @@ import uuid
 from typing import Iterable, Sequence, Optional
 
 from openai import OpenAI
-from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -178,11 +177,6 @@ def run_ingest(document_id: uuid.UUID) -> None:
                 )
                 db.add(ch)
             db.flush()
-
-            db.execute(
-                sql_text("UPDATE chunks SET tsv = to_tsvector('english', text) WHERE document_id = :d AND tsv IS NULL"),
-                {"d": str(doc.id)},
-            )
 
             doc.chunk_count = len(all_pieces)
             doc.status = "ready"
